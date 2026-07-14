@@ -19,6 +19,12 @@ export default function Home() {
   const [status, setStatus] = useState<GenStatus>({ generating: false, queue: 0 });
   const [queueLen, setQueueLen] = useState(0);
   const [usedPrompt, setUsedPrompt] = useState("");
+  const [backend, setBackend] = useState<string>("");
+
+  function handleStatus(s: GenStatus) {
+    setStatus(s);
+    if (s.backend) setBackend(s.backend);
+  }
 
   const playerRef = useRef<CrossfadePlayer | null>(null);
   const liveRef = useRef<MusicGenerator | null>(null);
@@ -57,13 +63,13 @@ export default function Home() {
         seconds: CHUNK_SECONDS,
         targetQueue: TARGET_QUEUE,
       });
-      gen.onStatus = setStatus;
+      gen.onStatus = handleStatus;
       gen.onPromptUsed = setUsedPrompt;
       liveRef.current = gen;
       gen.start();
     } else {
       const fb = new FallbackGenerator(player, mood, TARGET_QUEUE);
-      fb.onStatus = setStatus;
+      fb.onStatus = handleStatus;
       demoRef.current = fb;
       fb.start();
     }
@@ -143,6 +149,11 @@ export default function Home() {
             </span>
           </div>
           <div className="spacer" />
+          {backend && (
+            <span className="hint" style={{ marginTop: 0 }}>
+              {backend === "synth" ? "🎹 local synth" : "⚡ Replicate"}
+            </span>
+          )}
           <div className="queue" title="generate-ahead buffer">
             {Array.from({ length: TARGET_QUEUE }).map((_, i) => (
               <span key={i} className={`qslot ${i < queueLen ? "full" : ""}`} />
@@ -151,7 +162,9 @@ export default function Home() {
         </div>
         {mode === "live" && (
           <p className="hint">
-            First chunk can take 10–30s (model cold start). Buffer fills, then it stays ahead.
+            {backend === "replicate"
+              ? "First chunk can take 10–30s (model cold start). Buffer fills, then it stays ahead."
+              : "Running locally with the built-in synth — no API key needed. Add REPLICATE_API_TOKEN for real MusicGen."}
           </p>
         )}
       </div>

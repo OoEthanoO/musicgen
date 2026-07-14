@@ -7,7 +7,7 @@ import { CrossfadePlayer } from "./audioEngine";
 // SEQUENTIAL — you can't parallelize the chain. Build runway with longer chunks,
 // not with concurrency.
 
-export type GenStatus = { generating: boolean; queue: number; error?: string };
+export type GenStatus = { generating: boolean; queue: number; error?: string; backend?: string };
 
 const sleep = (ms: number) => new Promise((r) => setTimeout(r, ms));
 
@@ -22,6 +22,7 @@ export class MusicGenerator {
   private lastChunk: string | null = null; // data URI of previous chunk = continuation seed
   private running = false;
   private targetQueue: number;
+  private step = 0; // absolute chunk index — drives synth continuity / progression
 
   constructor(
     player: CrossfadePlayer,
@@ -69,19 +70,21 @@ export class MusicGenerator {
             prompt: promptUsed,
             initAudio: this.lastChunk,
             seconds: this.seconds,
+            step: this.step,
           }),
         });
         if (!res.ok) throw new Error(`gen ${res.status}: ${await res.text()}`);
 
-        const { audioDataUri } = await res.json();
+        const { audioDataUri, backend } = await res.json();
         const arr = await (await fetch(audioDataUri)).arrayBuffer();
         const buf = await this.player.ctx.decodeAudioData(arr);
 
         if (!this.running) break;
         this.player.enqueue(buf);
         this.lastChunk = audioDataUri; // seed the next chunk with this one
+        this.step++;
         this.onPromptUsed?.(promptUsed);
-        this.onStatus?.({ generating: false, queue: this.player.queueLength });
+        this.onStatus?.({ generating: false, queue: this.player.queueLength, backend });
       } catch (e: unknown) {
         const msg = e instanceof Error ? e.message : String(e);
         this.onStatus?.({ generating: false, queue: this.player.queueLength, error: msg });
